@@ -42,6 +42,9 @@ ref: https://www.hex-rays.com/products/ida/support/idapython_docs/
 
 import os
 from idaapi import *
+from capstone import *
+
+md = None
 
 g_param_format = {
     "char"      : "CHAR",
@@ -182,12 +185,29 @@ def from_h_function_type(Name, argN):
     Args = ','.join([Ret] * argN)
     return (Ret, Args, argN)
 
+def print_ins():
+    for segea in Segments(): # HEADER,idata,text..
+        for funcea in Functions(segea, SegEnd(segea)):
+            mnem = GetDisasm(funcea)
+            print mnem
+
+
 def fetch_x86(seg, fout):
+    print("fetch_x86() ---------------")
     g_TotalFunc = 0
     func = get_next_func(seg.startEA)
+    print("fetch_x86() func:%s" % func)
+
     while func is not None and func.startEA < seg.endEA:
         funcEA = func.startEA
+        print("----------fetch_x86() funcEA:0x%x" % funcEA)
+
         INSTS = list(FuncItems(funcEA))
+        print("fetch_x86() INSTS:%s" % INSTS)
+
+        mnem = GetDisasm(INSTS[0])
+        print mnem
+
         if len(INSTS) == 4               \
         and "mov" == GetMnem(INSTS[0])   \
         and "mov" == GetMnem(INSTS[1])   \
@@ -213,21 +233,27 @@ def fetch_x86(seg, fout):
             g_TotalFunc += 1
 
         func = get_next_func(funcEA)
+    # while end
 
     return g_TotalFunc
 
 def fetch_x64(seg, fout):
+    print("fetch_x64() ---------------")
     g_TotalFunc = 0
     func = get_next_func(seg.startEA)
+    print("fetch_x64 func:%s" % func)
     while func is not None and func.startEA < seg.endEA:
         funcEA = func.startEA
+        print("fetch_x64 funcEA:0x%x" % funcEA)
 
         INSTS = list(FuncItems(funcEA))
+        print("fetch_x64 INSTS:%s" % INSTS)
+
         if len(INSTS) == 4               \
         and "mov" == GetMnem(INSTS[0])   \
         and "mov" == GetMnem(INSTS[1])   \
         and "syscall" == GetMnem(INSTS[2])  \
-        and "retn" == GetMnem(INSTS[3]) :
+        and "retn" == GetMnem(INSTS[3]) : # syscall is in lib..ida pro can not see syscall ins.
 
             ID = GetOperandValue(INSTS[1], 1)
             Name = get_func_name(funcEA).split('@')[0]
@@ -244,6 +270,10 @@ def fetch_x64(seg, fout):
     return g_TotalFunc
 
 def main():
+    global md
+    md = Cs(CS_ARCH_X86, CS_MODE_64)
+    md.detail = True
+
     seg = get_segm_by_name(".text")
     if not seg:
         print "canot find CODE section."
@@ -268,5 +298,7 @@ def main():
     f.close()
     print "total:%d" % g_TotalFunc
 
-main()
+if __name__ == '__main__':
+    # main()
+    print_ins()  
  
